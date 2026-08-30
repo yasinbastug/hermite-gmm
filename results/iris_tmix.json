@@ -1,0 +1,14 @@
+{
+  "dataset": "iris",
+  "model": "t-mixture (symmetric, studenttmixture; NOT skew-t)",
+  "G_bic": 5,
+  "bic_at_G_bic": 698.7656488848528,
+  "bic_at_true_G": 814.3427525361567,
+  "ari_at_G_bic": 0.701929093264477,
+  "ari_at_true_G": 0.9038742317748124,
+  "df_at_true_G": [
+    43.73408933398701,
+    10.761017697174912,
+    108.2934870896786
+  ]
+}

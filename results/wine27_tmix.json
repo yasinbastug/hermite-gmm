@@ -1,0 +1,14 @@
+{
+  "dataset": "wine27",
+  "model": "t-mixture (symmetric, studenttmixture; NOT skew-t)",
+  "G_bic": 10,
+  "bic_at_G_bic": 7877.366962948596,
+  "bic_at_true_G": 14232.52141809712,
+  "ari_at_G_bic": 0.3320860634141071,
+  "ari_at_true_G": 1.0,
+  "df_at_true_G": [
+    746.1400462781062,
+    26.821612921691376,
+    2530.953006102521
+  ]
+}

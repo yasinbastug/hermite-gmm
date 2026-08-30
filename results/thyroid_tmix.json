@@ -1,0 +1,14 @@
+{
+  "dataset": "thyroid",
+  "model": "t-mixture (symmetric, studenttmixture; NOT skew-t)",
+  "G_bic": 3,
+  "bic_at_G_bic": 1230.8101437950747,
+  "bic_at_true_G": 1230.8101437950747,
+  "ari_at_G_bic": 0.8627141000575279,
+  "ari_at_true_G": 0.8627141000575279,
+  "df_at_true_G": [
+    15.197485159457461,
+    26.458682722276997,
+    58.89191923624107
+  ]
+}

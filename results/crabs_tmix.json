@@ -1,0 +1,15 @@
+{
+  "dataset": "crabs",
+  "model": "t-mixture (symmetric, studenttmixture; NOT skew-t)",
+  "G_bic": 3,
+  "bic_at_G_bic": -72.1488515936515,
+  "bic_at_true_G": -3.9804706414666384,
+  "ari_at_G_bic": 0.6777265292220245,
+  "ari_at_true_G": 0.601163236806163,
+  "df_at_true_G": [
+    34.598837692212264,
+    190.26432454575968,
+    141.30153783114991,
+    48.55926182744745
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "dataset": "ais",
+  "model": "t-mixture (symmetric, studenttmixture; NOT skew-t)",
+  "G_bic": 3,
+  "bic_at_G_bic": 2384.4078582946827,
+  "bic_at_true_G": 2387.1608403678274,
+  "ari_at_G_bic": 0.5508644122887028,
+  "ari_at_true_G": 0.8841413282710701,
+  "df_at_true_G": [
+    5.423078535879962,
+    12.890848903187003
+  ]
+}

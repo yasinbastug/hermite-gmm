@@ -1,0 +1,123 @@
+[
+  {
+    "dataset": "diabetes",
+    "G": 3,
+    "m": 3,
+    "lambda": 1.0,
+    "sphere": {
+      "final_train_ll": -1.0436557658781431,
+      "n_outer_iter": 5,
+      "converged": true,
+      "monotone": true,
+      "total_backtracks": 82,
+      "hessian_cond_per_component": [
+        1.5866625249260622,
+        1.597829830226506,
+        1.3490498421979151
+      ],
+      "hessian_cond_worst": 1.597829830226506,
+      "b_norms": [
+        1.0,
+        1.0,
+        0.9999999999999999
+      ]
+    },
+    "naive": {
+      "final_train_ll": -1.0393625884474977,
+      "n_outer_iter": 83,
+      "converged": true,
+      "monotone": true,
+      "total_backtracks": 2200,
+      "hessian_cond_per_component": [
+        2164.772529488056,
+        1978.2258747372869,
+        2114.5718246711904
+      ],
+      "hessian_cond_worst": 2164.772529488056,
+      "b_norms": [
+        0.3077276812340459,
+        0.14762099842144236,
+        0.08095545421973761
+      ]
+    },
+    "cond_ratio_naive_over_sphere": 1354.8204499231192
+  },
+  {
+    "dataset": "faithful",
+    "G": 2,
+    "m": 4,
+    "lambda": 10.0,
+    "sphere": {
+      "final_train_ll": -1.3483504516000477,
+      "n_outer_iter": 4,
+      "converged": true,
+      "monotone": true,
+      "total_backtracks": 48,
+      "hessian_cond_per_component": [
+        1.616177219832054,
+        1.49700998095824
+      ],
+      "hessian_cond_worst": 1.616177219832054,
+      "b_norms": [
+        0.9999999999999998,
+        1.0
+      ]
+    },
+    "naive": {
+      "final_train_ll": -1.338861305415349,
+      "n_outer_iter": 94,
+      "converged": true,
+      "monotone": true,
+      "total_backtracks": 1640,
+      "hessian_cond_per_component": [
+        1986.2660626917257,
+        2282.357984028813
+      ],
+      "hessian_cond_worst": 2282.357984028813,
+      "b_norms": [
+        0.120030205780891,
+        0.197028222938141
+      ]
+    },
+    "cond_ratio_naive_over_sphere": 1412.195368194823
+  },
+  {
+    "dataset": "ais",
+    "G": 2,
+    "m": 3,
+    "lambda": 1.0,
+    "sphere": {
+      "final_train_ll": -3.0235458148558307,
+      "n_outer_iter": 6,
+      "converged": true,
+      "monotone": true,
+      "total_backtracks": 79,
+      "hessian_cond_per_component": [
+        3.502147266159101,
+        4.7715033480911675
+      ],
+      "hessian_cond_worst": 4.7715033480911675,
+      "b_norms": [
+        1.0,
+        0.9999999999999999
+      ]
+    },
+    "naive": {
+      "final_train_ll": -2.948148683611426,
+      "n_outer_iter": 105,
+      "converged": true,
+      "monotone": true,
+      "total_backtracks": 2002,
+      "hessian_cond_per_component": [
+        2246.2746398597305,
+        2262.7955765964184
+      ],
+      "hessian_cond_worst": 2262.7955765964184,
+      "b_norms": [
+        0.1549349485521585,
+        0.1534927349186809
+      ]
+    },
+    "cond_ratio_naive_over_sphere": 474.2311618625703
+  }
+]

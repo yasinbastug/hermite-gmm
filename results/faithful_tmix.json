@@ -1,0 +1,13 @@
+{
+  "dataset": "faithful",
+  "model": "t-mixture (symmetric, studenttmixture; NOT skew-t)",
+  "G_bic": 2,
+  "bic_at_G_bic": 843.7576556305003,
+  "bic_at_true_G": 843.7576556305003,
+  "ari_at_G_bic": null,
+  "ari_at_true_G": null,
+  "df_at_true_G": [
+    17.506873218022378,
+    29.290330125443926
+  ]
+}

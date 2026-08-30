@@ -1,0 +1,14 @@
+{
+  "dataset": "diabetes",
+  "model": "t-mixture (symmetric, studenttmixture; NOT skew-t)",
+  "G_bic": 3,
+  "bic_at_G_bic": 486.6399517467946,
+  "bic_at_true_G": 486.6399517467946,
+  "ari_at_G_bic": 0.7186811894685496,
+  "ari_at_true_G": 0.7186811894685496,
+  "df_at_true_G": [
+    78.3471728170687,
+    112.20999794591013,
+    90.59726507785761
+  ]
+}

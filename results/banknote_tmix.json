@@ -1,0 +1,13 @@
+{
+  "dataset": "banknote",
+  "model": "t-mixture (symmetric, studenttmixture; NOT skew-t)",
+  "G_bic": 3,
+  "bic_at_G_bic": 2762.7529191510675,
+  "bic_at_true_G": 2797.544894843408,
+  "ari_at_G_bic": 0.7778658556314103,
+  "ari_at_true_G": 0.9799995050507551,
+  "df_at_true_G": [
+    10.82227811970221,
+    20.914384956071018
+  ]
+}

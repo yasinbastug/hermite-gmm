@@ -1,0 +1,14 @@
+{
+  "dataset": "olive",
+  "model": "t-mixture (symmetric, studenttmixture; NOT skew-t)",
+  "G_bic": 8,
+  "bic_at_G_bic": 4876.534686627786,
+  "bic_at_true_G": 5601.037187524047,
+  "ari_at_G_bic": 0.38051813099002507,
+  "ari_at_true_G": 0.5252985560153327,
+  "df_at_true_G": [
+    15.027886106777423,
+    8.813358174008536,
+    5.9390638633593165
+  ]
+}

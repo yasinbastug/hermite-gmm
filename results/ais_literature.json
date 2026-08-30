@@ -1,0 +1,26 @@
+{
+  "n": 202,
+  "variables": [
+    "ht",
+    "pcBfat"
+  ],
+  "G": 2,
+  "literature_correct_of_202": {
+    "skew-t (FM-uMST)": 183,
+    "mixsmsn skew-t": 162,
+    "restricted skew-t (EMMIX-skew)": 157,
+    "sym t (FM-MT)": 165
+  },
+  "plain GMM": {
+    "correct_of_202": 181,
+    "ari": 0.6255848851702069
+  },
+  "t-mix (symmetric)": {
+    "correct_of_202": 163,
+    "ari": 0.3737692074044846
+  },
+  "Hermite-GMM (m=3, lam=1.0)": {
+    "correct_of_202": 180,
+    "ari": 0.6099161317325019
+  }
+}
