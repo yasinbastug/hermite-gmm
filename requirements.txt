@@ -1,3 +1,8 @@
+# Python 3.10-3.12. Verified on 3.10 and 3.11: full test suite passes and
+# CV log-likelihoods agree to 4 decimals on both, though pip resolves
+# different versions (3.10 -> numpy 2.2 / pandas 2.3 / sklearn 1.7 / scipy
+# 1.15; 3.11 -> numpy 2.4 / pandas 3.0 / sklearn 1.9 / scipy 1.17).
+#
 # Core: needed for the model, datasets, and the benchmark sweep.
 # Lower bounds are what this was developed and verified against; newer
 # versions are expected to work.

@@ -24,9 +24,14 @@ python3.11 -m venv .venv && .venv/bin/pip install -U pip
 .venv/bin/pip install -r requirements.txt
 ```
 
-Python 3.11 or 3.12. (3.13/3.14 may lack wheels for some dependencies.) If
-`studenttmixture` fails to build, delete that line from `requirements.txt` and
-reinstall — it is only used by the t-mixture baseline, not the degree sweep.
+**Python 3.10, 3.11, or 3.12.** 3.10 and 3.11 are both verified: the full test
+suite passes and CV log-likelihoods agree to four decimals across them, even
+though pip resolves different dependency versions (3.10 gets numpy 2.2 /
+pandas 2.3 / sklearn 1.7; 3.11 gets numpy 2.4 / pandas 3.0 / sklearn 1.9).
+3.13/3.14 may lack wheels for some dependencies.
+
+If `studenttmixture` fails to build, delete that line from `requirements.txt`
+and reinstall — it is only used by the t-mixture baseline, not the degree sweep.
 
 Confirm the install and the datasets:
 
