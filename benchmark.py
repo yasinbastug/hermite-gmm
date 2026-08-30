@@ -66,10 +66,13 @@ SEED = 0
 DEFAULT_MAX_PHI_GB = 4.0
 DEFAULT_MAX_BASIS = 2_000_000
 
-# Measured cost of one CV cell per (n x |A_m|) unit, from timing thyroid
-# m=12 (20.9s) and olive m=10 (294s) on an M-series laptop. Used only for
-# the --dry-run estimate.
-SEC_PER_UNIT = 13e-6
+# Cost of one CV cell per (n x |A_m|) unit, measured on an M-series laptop
+# across six (dataset, m) points spanning |A_m| = 6k..350k. The implied
+# rate ranges 11.8-41.0 us (median 15.8): the spread is driven mainly by
+# how many EM iterations a given cell needs, which is not predictable from
+# |A_m|, so --dry-run reports a RANGE rather than false precision.
+SEC_PER_UNIT_LOW = 12e-6
+SEC_PER_UNIT_HIGH = 41e-6
 
 
 def basis_size(k, m):
@@ -290,9 +293,9 @@ def dry_run(names, degrees, max_phi_gb, max_basis):
     print(f"Degree grid: {degrees}")
     print(f"Caps: max_phi_gb={max_phi_gb}, max_basis={max_basis:,}\n")
     hdr = (f"{'dataset':10s} {'n':>4s} {'p':>3s} {'feasible m':>28s} "
-           f"{'skipped m':>16s} {'cells':>7s} {'peak Phi':>10s} {'core-h':>8s}")
+           f"{'skipped m':>16s} {'cells':>7s} {'peak Phi':>10s} {'core-h':>14s}")
     print(hdr); print("-" * len(hdr))
-    total_cells, total_hours = 0, 0.0
+    total_cells, lo_hours, hi_hours = 0, 0.0, 0.0
     for name in names:
         X, y, G = TIER1[name]()
         n, k = X.shape
@@ -300,20 +303,22 @@ def dry_run(names, degrees, max_phi_gb, max_basis):
         cells = sum(len(LAMBDAS) if m > 0 else 1 for m in keep) * len(G_GRID)
         total_cells += cells
         peak = max((phi_bytes(n, k, m) for m in keep), default=0) / 1e9
-        hours = sum((len(LAMBDAS) if m > 0 else 1) * SEC_PER_UNIT * n
-                    * basis_size(k, m) * (G_ / 3.0)
-                    for m in keep for G_ in G_GRID) / 3600.0
-        total_hours += hours
+        units = sum((len(LAMBDAS) if m > 0 else 1) * n * basis_size(k, m)
+                    * (G_ / 3.0) for m in keep for G_ in G_GRID)
+        lo, hi = units * SEC_PER_UNIT_LOW / 3600, units * SEC_PER_UNIT_HIGH / 3600
+        lo_hours += lo; hi_hours += hi
         ks = ",".join(str(m) for m in keep)
         ss = ",".join(str(s["m"]) for s in skip) or "-"
         print(f"{name:10s} {n:4d} {k:3d} {ks:>28s} {ss:>16s} {cells:7d} "
-              f"{peak:9.2f}G {hours:8.1f}")
+              f"{peak:9.2f}G {lo:6.0f}-{hi:<7.0f}")
     print(f"\nTotal CV cells: {total_cells:,} "
           f"(x{N_FOLDS} folds = {total_cells * N_FOLDS:,} model fits)")
-    print(f"Rough cost: {total_hours:.0f} core-hours"
-          + "".join(f" | {j} jobs ~ {total_hours / j:.1f}h" for j in (8, 16, 32)))
-    print("Estimate extrapolates a measured ~13us per (n x |A_m|) unit per "
-          "cell; treat as an order-of-magnitude guide, not a promise.")
+    print(f"Estimated cost: {lo_hours:.0f}-{hi_hours:.0f} core-hours"
+          + "".join(f" | {j} jobs ~ {lo_hours / j:.0f}-{hi_hours / j:.0f}h"
+                    for j in (8, 16, 32)))
+    print("Range spans a measured 12-41us per (n x |A_m|) unit per cell; the "
+          "spread is EM-iteration count, not basis size, so plan for the "
+          "upper end.")
     print("Cells are cached and resumable -- interrupting costs nothing.")
 
 

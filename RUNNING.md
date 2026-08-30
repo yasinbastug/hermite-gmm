@@ -146,21 +146,25 @@ Anything skipped is recorded in `results/<dataset>.json` under
 
 ## 5. Expected runtime
 
-`--dry-run` prints a per-dataset estimate. At the default caps the totals are:
+`--dry-run` prints a per-dataset estimate. At the default caps:
 
 | dataset | est. core-hours | share |
 |---|---|---|
-| faithful, diabetes, iris, crabs, thyroid, banknote | ~3.7 combined | 1% |
-| olive | 33 | 13% |
-| wine27 (capped at m=6) | 48 | 18% |
-| wine13 (capped at m=10) | 69 | 26% |
-| ais | 109 | 42% |
-| **total** | **~262** | |
+| faithful, diabetes, iris, crabs, thyroid, banknote | ~5–11 combined | 2% |
+| olive | 31–105 | 13% |
+| wine27 (capped at m=6) | 44–150 | 18% |
+| wine13 (capped at m=10) | 64–219 | 26% |
+| ais | 100–342 | 41% |
+| **total** | **242–827** | |
 
-So roughly **33 h at 8 jobs, 16 h at 16, 8 h at 32**, assuming near-perfect
-scaling (optimistic — expect somewhat worse). The estimate extrapolates a
-measured ~13 µs per `n × |A_m|` unit per cell; treat it as an order of
-magnitude, not a promise.
+So roughly **30–103 h at 8 jobs, 15–52 h at 16, 8–26 h at 32**, assuming
+near-perfect scaling (optimistic).
+
+The range is wide because it is real. Measured cost per `n × |A_m|` unit
+across six (dataset, m) points spans 12–41 µs, and the spread is driven by how
+many EM iterations a cell happens to need — not by basis size, so it cannot be
+predicted in advance. **Plan for the upper end.** Because every cell is cached,
+overrunning is inconvenient rather than costly: stop, restart later, lose nothing.
 
 If you want a fast partial result first:
 
