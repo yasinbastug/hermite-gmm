@@ -1,3 +1,5 @@
 .venv/
 __pycache__/
 .DS_Store
+results/_cv_cache/
+*.log

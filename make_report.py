@@ -82,6 +82,23 @@ def main():
         ]
         lines.append("| " + " | ".join(row) + " |")
 
+    lines.append("\n## Degree grid actually searched\n")
+    lines.append("| dataset | p | degrees searched | degrees skipped (infeasible) | "
+                 "m selected @CV | m selected @true-G | basis size @true-G |")
+    lines.append("|---|---|---|---|---|---|---|")
+    for name in ORDER:
+        r = _load(name)
+        if r is None:
+            continue
+        searched = ",".join(str(d) for d in r.get("degrees_searched", []))
+        skipped = r.get("skipped_degrees", [])
+        sk = (", ".join(f"{s['m']} ({s['basis']:,} fns)" for s in skipped)
+              if skipped else "--")
+        tg, sel = r["hermite"]["at_true_G"], r["hermite"]["cv_selected"]
+        lines.append(f"| {name} | {r['p']} | {searched} | {sk} | "
+                     f"{sel['m']} | {tg['m']} | "
+                     f"{tg.get('n_basis', '--')} |")
+
     lines.append("\n## Density fit at true G (held-out CV log-likelihood, "
                  "mean per sample) and BIC\n")
     lines.append("| dataset | GMM cv-LL @BIC-G | GMM cv-LL @true-G | "

@@ -15,7 +15,8 @@ GMM exactly (strict nested extension).
 | `hermite_gmm.py` | The model: `HermiteGMM(n_components, degree, reg_lambda, ...)` with `fit / predict / predict_proba / score_samples / score / bic / degree_energies`. |
 | `test_hermite_gmm.py` | Sanity tests: basis orthonormality (quadrature), exact GMM reduction vs sklearn, monotone EM log-likelihood on iris, 1-D synthetic skew recovery. |
 | `datasets.py` | Tier-1 loaders (iris, faithful, wine13, diabetes, crabs, banknote, thyroid, ais, olive, wine27); files cached in `data/`, provenance in the docstring. |
-| `benchmark.py` | Plain GMM (BIC over G=1..10) vs Hermite-GMM ((G, m, lambda) by 5-fold CV held-out log-likelihood). Writes `results/<dataset>.json`. |
+| `benchmark.py` | Plain GMM (BIC over G=1..10) vs Hermite-GMM ((G, m, lambda) by 5-fold CV held-out log-likelihood). Configurable degree grid (`--degrees`, default m in {0,3,4,...,12}), memory-aware skipping (`--max-phi-gb`), parallel (`--jobs`), resumable via a per-cell cache, and `--dry-run` to plan cost. Writes `results/<dataset>.json`. |
+| `RUNNING.md` | Step-by-step instructions for running the full degree sweep on a bigger machine and delivering results back. |
 | `baseline_tmix.py` | Symmetric Student's-t mixture baseline (`studenttmixture`). **Not** a skew-t (no R available; EMMIXskew archived on CRAN) — labeled accordingly. |
 | `ablation_gauge.py` | Section-33 gauge-fixing ablation: sphere-constrained vs naive `b` parameterization; Hessian condition numbers, `||b||` drift. |
 | `make_report.py` | Assembles `results/*.json` into `results/REPORT.md`. |

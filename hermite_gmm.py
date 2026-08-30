@@ -420,16 +420,24 @@ class HermiteGMM:
 
     # -- b_c inner optimization ---------------------------------------------
 
-    def _Q(self, b, Phi, gamma, Nc):
-        """Section 30 objective Q_c(b) (up to b-independent constants)."""
-        g = Phi @ b
+    def _Q_from_g(self, g, b, gamma, Nc):
+        """Section 30 objective Q_c(b) given a precomputed g = Phi @ b.
+
+        Split out from `_Q` so the line search can reuse an O(n) update of
+        g instead of redoing the O(n|A_m|) matvec on every backtrack.
+        """
         return (float(gamma @ np.log(g * g + self.eps))
                 - Nc * math.log(b @ b + self.eps)
                 - self.reg_lambda * float(b @ (self._reg_w * b)))
 
-    def _grad_Q(self, b, Phi, gamma, Nc):
-        """Section 31 gradient."""
-        g = Phi @ b
+    def _Q(self, b, Phi, gamma, Nc):
+        """Section 30 objective Q_c(b) (up to b-independent constants)."""
+        return self._Q_from_g(Phi @ b, b, gamma, Nc)
+
+    def _grad_Q(self, b, Phi, gamma, Nc, g=None):
+        """Section 31 gradient. Pass `g = Phi @ b` to skip recomputing it."""
+        if g is None:
+            g = Phi @ b
         data = Phi.T @ (gamma * 2.0 * g / (g * g + self.eps))
         norm = 2.0 * Nc * b / (b @ b + self.eps)
         reg = 2.0 * self.reg_lambda * self._reg_w * b
@@ -446,25 +454,32 @@ class HermiteGMM:
         """
         b = self.b_[c].copy()
         diag = _InnerDiag(iteration=it, component=c, q_gain=0.0)
-        q0 = self._Q(b, Phi, gamma, Nc)
-        q = q0
+        Pb = Phi @ b
+        q = q0 = self._Q_from_g(Pb, b, gamma, Nc)
         step = 1.0 / max(Nc, 1.0)
         for _ in range(self.n_inner):
-            grad = self._grad_Q(b, Phi, gamma, Nc)
+            grad = self._grad_Q(b, Phi, gamma, Nc, g=Pb)
             if self.gauge_fix:
                 grad = grad - (b @ grad) * b  # tangent projection
             gnorm = float(np.linalg.norm(grad))
             diag.grad_norms.append(gnorm)
             if gnorm < 1e-12:
                 break
-            # Armijo backtracking line search
+            # Armijo backtracking. Phi @ (b + t*grad) = Pb + t*Pg is exact
+            # and O(n), so the O(n|A_m|) matvec happens once per inner step
+            # instead of once per backtrack -- worth up to ~30x here, and
+            # |A_m| reaches thousands at high degree.
+            Pg = Phi @ grad
             accepted = False
             t = step
             for _bt in range(30):
                 b_new = b + t * grad
+                g_new = Pb + t * Pg
                 if self.gauge_fix:
-                    b_new = b_new / np.linalg.norm(b_new)
-                q_new = self._Q(b_new, Phi, gamma, Nc)
+                    nrm = np.linalg.norm(b_new)
+                    b_new = b_new / nrm
+                    g_new = g_new / nrm
+                q_new = self._Q_from_g(g_new, b_new, gamma, Nc)
                 if q_new >= q + 1e-4 * t * gnorm ** 2:
                     accepted = True
                     break
@@ -472,7 +487,7 @@ class HermiteGMM:
                 diag.n_backtracks += 1
             if not accepted:
                 break
-            b, q = b_new, q_new
+            b, q, Pb = b_new, q_new, g_new
             step = min(t * 2.0, 1e6)  # mild step-size adaptation
         # canonical sign: make the degree-0 coefficient non-negative
         if b[0] < 0:
