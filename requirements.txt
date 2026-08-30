@@ -1,0 +1,13 @@
+# Core: needed for the model, datasets, and the benchmark sweep.
+# Lower bounds are what this was developed and verified against; newer
+# versions are expected to work.
+numpy>=1.26
+scipy>=1.11
+scikit-learn>=1.4
+pandas>=2.0
+joblib>=1.3
+pyreadr>=0.5          # reads the pgmm .rda files (wine27, olive)
+
+# Optional: the symmetric Student's-t baseline only (baseline_tmix.py).
+# Not needed for the degree sweep; drop this line if it fails to build.
+studenttmixture>=1.11

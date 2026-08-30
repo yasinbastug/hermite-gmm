@@ -21,11 +21,12 @@ python3.11 -m venv .venv && .venv/bin/pip install -U pip
 ```
 
 ```bash
-.venv/bin/pip install numpy scipy scikit-learn pandas pyreadr joblib studenttmixture
+.venv/bin/pip install -r requirements.txt
 ```
 
-Python 3.11 or 3.12. (3.13/3.14 may not have wheels for every dependency;
-`studenttmixture` is only needed for the t-mixture baseline, not the main sweep.)
+Python 3.11 or 3.12. (3.13/3.14 may lack wheels for some dependencies.) If
+`studenttmixture` fails to build, delete that line from `requirements.txt` and
+reinstall — it is only used by the t-mixture baseline, not the degree sweep.
 
 Confirm the install and the datasets:
 
