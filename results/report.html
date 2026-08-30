@@ -93,6 +93,7 @@
     border-radius: 4px;
   }
   .findings li.win { border-left-color: var(--hl); }
+  .findings li.caution { border-left-color: var(--bad); }
   .findings b { font-weight: 600; }
 
   .tablewrap {
@@ -162,7 +163,7 @@
 </style>
 
 <div class="wrap">
-  <p class="stamp">TIER-1 MODEL-BASED-CLUSTERING BENCHMARK · 2026-08-29</p>
+  <p class="stamp">TIER-1 MODEL-BASED-CLUSTERING BENCHMARK · 2026-08-30</p>
   <h1>Hermite-GMM Benchmark</h1>
   <p class="sub">A Gaussian mixture whose components carry exactly-normalized squared-Hermite
   shape corrections (degrees 1–2 excluded, unit-norm gauge fixed), fit by monotone
@@ -170,15 +171,25 @@
   mixture on ten standard datasets.</p>
 
   <ul class="findings">
-    <li class="win"><b>Headline result on 5 of 7 eligible datasets</b> (wine13, diabetes,
+    <li class="win"><b>Density-fit result on 5 of 7 eligible datasets</b> (wine13, diabetes,
       thyroid, AIS, wine27): the Hermite-GMM density fitted at the <i>true</i> G beats the
       plain GMM's BIC-selected model — which used <i>more</i> components — on 5-fold
-      held-out log-likelihood. Fewer, more flexible components beating more, rigid ones.</li>
-    <li><b>AIS is the cleanest win.</b> CV selects exactly the true G = 2 with degree-4
-      corrections: ARI 0.884 vs 0.717 for the BIC-selected 3-component GMM, and held-out
-      log-likelihood −4.75 vs −5.85 per sample. On the paper's 2-variable AIS task the
-      Hermite fit scores 180/202 correct — matching the unrestricted skew-t literature
-      number (183) and beating restricted skew-t (157) and symmetric-t (165).</li>
+      held-out log-likelihood. Fewer, more flexible components beating more, rigid ones.
+      <b>Read this with the oracle caveat below</b>: it grants Hermite-GMM the true G while
+      plain GMM has to find G itself.</li>
+    <li class="caution"><b>Judged end-to-end, the picture is mixed.</b> Comparing both
+      pipelines equally blind — each picking its own G by its own criterion — gives 3 wins
+      (AIS 0.884 vs 0.717, iris 0.811 vs 0.568, olive 0.511 vs 0.476), 2 ties (banknote,
+      thyroid), and 3 losses, one severe: on wine27 (p = 27, n = 178) CV collapsed to
+      G = 1 for ARI 0.000, and wine13 fell to 0.461 against plain GMM's 0.908. CV-based
+      selection is unstable at these sample sizes, and worsens as dimension grows.</li>
+    <li><b>AIS is the strongest case — but on density, not clustering.</b> At matched
+      G = 2, ARI is <i>identical</i> (0.884) for both models: the corrections do not change
+      who lands in which cluster. What improves is held-out log-likelihood, −4.75 vs −5.71
+      at the same G. The separate 0.717 figure is plain GMM at its BIC-chosen G = 3, so
+      that gap measures a model-selection failure, not clustering quality. On the paper's
+      2-variable AIS task the Hermite fit scores 180/202 correct — near the unrestricted
+      skew-t literature number (183), above restricted skew-t (157) and symmetric-t (165).</li>
     <li><b>Correctness checks all pass.</b> The reduction to sklearn's
       <code>GaussianMixture</code> is exact to 2·10⁻¹⁵; the penalized EM objective is
       monotone non-decreasing on every dataset; the 1-D synthetic test recovers a pure
@@ -188,10 +199,16 @@
       in 4–6 outer iterations; the naive raw-b parameterization is 470–1400× worse
       conditioned, takes 83–105 iterations, and lets ‖b‖ collapse to 0.08–0.31 so the
       ridge penalty shrinks meaningless scale instead of shape.</li>
-    <li><b>BIC never favors the Hermite model</b> — it charges the full raw coefficient
-      count (e.g. +455 per component for degree 3 in 13 dimensions), which the design doc
-      itself flags as over-penalizing regularized coefficients. All headline wins are on
-      held-out likelihood, the criterion the doc recommends.</li>
+    <li><b>BIC's parameter count was broken, now fixed — and BIC still doesn't pick the
+      Hermite model.</b> It originally charged the full raw coefficient count regardless of
+      shrinkage (+455 per component for degree 3 in 13 dimensions), inflating BIC by up to
+      6.4× and making rejection automatic at every λ. Replacing it with a shrinkage-aware
+      effective d.o.f. (ridge-trace <code>J/(J + 2λw)</code> per coefficient) brings AIS
+      from 15,444 to 2,964 and wine13 from 40,358 to 6,315, and converges to plain GMM's
+      BIC as λ → ∞ (580.8 vs 580.9 on iris) as it must. Even corrected, BIC prefers plain
+      GMM everywhere — now a conservative but legitimate verdict rather than a broken one.
+      All density-fit wins here are on held-out likelihood, the criterion the doc
+      recommends for this model.</li>
   </ul>
 
   <h2>Main comparison</h2>
@@ -200,7 +217,9 @@
   log-likelihood over G = 1–10, m ∈ {0, 3, 4}, λ ∈ {0.1, 1, 10}; m = 0 is exactly the
   plain GMM, so the grid includes the reduction. <span class="win"
   style="background:var(--hl-soft);color:var(--hl);font-weight:600;padding:.1em .45em;border-radius:999px;font-size:.74rem;">HEADLINE</span>
-  = Hermite at true G beats the BIC-selected (larger) GMM on held-out log-likelihood.</p>
+  = Hermite at true G beats the BIC-selected (larger) GMM on held-out log-likelihood —
+  an oracle-G comparison, not an end-to-end one. For the blind pipeline-vs-pipeline
+  result, compare the <i>GMM ARI@BIC-G</i> and <i>HGMM ARI@CV</i> columns directly.</p>
   <div class="tablewrap"><table>
     <tr><th>dataset</th><th>n</th><th>p</th><th>true G</th>
         <th>GMM G(BIC)</th><th>GMM ARI@BIC-G</th><th>GMM ARI@true-G</th>
@@ -326,14 +345,22 @@
 
   <h2>Caveats</h2>
   <div class="caveat">
-    <b>The t-mix baseline is not a skew-t.</b> No R is available on this machine and
-    EMMIXskew/EMMIXuskew are archived on CRAN, so the baseline is the pure-Python
-    <code>studenttmixture</code> — a symmetric Student's-t mixture that captures heavy
-    tails but not skewness. The AIS literature table above supplies the true skew-t
-    reference numbers for at least that dataset. Other caveats: BIC for the Hermite model
-    charges the raw coefficient count and therefore over-penalizes (Section 36); wine27's
-    m = 4 cell was skipped (basis larger than 10,000); crabs at G = 4 is unsolved by every
-    model tested.
+    <p style="margin-top:0"><b>The t-mix baseline is not a skew-t.</b> No R is available on
+    this machine and EMMIXskew/EMMIXuskew are archived on CRAN, so the baseline is the
+    pure-Python <code>studenttmixture</code> — a symmetric Student's-t mixture that
+    captures heavy tails but not skewness. The AIS literature table above supplies true
+    skew-t reference numbers for that one dataset; the other nine have no skew-t
+    comparison point.</p>
+    <p><b>The "at true G" comparison uses an oracle.</b> Every row of the density-fit table
+    gives Hermite-GMM the correct number of components while plain GMM discovers G by BIC.
+    That isolates the density-modeling question, but it is not an end-to-end result — see
+    the mixed blind-pipeline verdict above.</p>
+    <p style="margin-bottom:0"><b>Degree search is bounded three ways.</b> Degrees 1–2 are
+    excluded by design (Section 26); the grid only tries m ∈ {0, 3, 4}, so degree 5+ is
+    unexplored even on the low-dimensional datasets where it would be cheap (faithful at
+    m = 6 is only 23 basis functions); and a 10,000-function cap skipped wine27's m = 4.
+    Also: crabs at G = 4 defeats every model tested, and wine27's smallest usable basis is
+    already 3,655 coefficients against 178 points.</p>
   </div>
 
   <p class="stamp" style="margin-top:3rem">

@@ -108,9 +108,52 @@ def test_synthetic_skew_recovery():
           f"vs GMM-{best_C} BIC {gmm_bics[best_C]:.1f}")
 
 
+def test_bic_effective_df_shrinkage():
+    """BIC's Hermite-block d.o.f. must actually respond to regularization.
+
+    Charging the raw |A_m|-1 coefficient count regardless of lambda made
+    BIC reject every Hermite fit no matter how strongly regularized (a
+    real bug found via the benchmark: raw BIC was 5-10x worse than plain
+    GMM's even at heavy shrinkage). The fixed formula must:
+      (a) give exactly 0 effective Hermite d.o.f. at degree=0 (pure GMM),
+      (b) decrease monotonically as lambda increases, and
+      (c) converge toward plain GMM's BIC (from above) as lambda -> inf,
+          since the model degenerates to a plain GMM in that limit.
+    """
+    X = load_iris().data
+
+    hg0 = HermiteGMM(n_components=3, degree=0, max_iter=50,
+                     random_state=0).fit(X)
+    df0 = hg0._hermite_effective_df(X)
+    assert abs(df0) < 1e-6, f"m=0 should give exactly 0 effective df, got {df0}"
+
+    lams = [1e-3, 1.0, 100.0, 1e6]
+    dfs, bics = [], []
+    for lam in lams:
+        hg = HermiteGMM(n_components=3, degree=4, reg_lambda=lam,
+                        max_iter=100, random_state=0).fit(X)
+        dfs.append(hg._hermite_effective_df(X))
+        bics.append(hg.bic(X))
+    assert all(a > b for a, b in zip(dfs, dfs[1:])), \
+        f"effective df should decrease monotonically in lambda: {dfs}"
+
+    gmm_bic = GaussianMixture(n_components=3, random_state=0).fit(X).bic(X)
+    assert dfs[-1] < 0.5, f"df should be ~0 as lambda->inf, got {dfs[-1]:.3f}"
+    assert bics[-1] < bics[0], \
+        "heavily-regularized BIC should be far below the raw-count BIC"
+    assert abs(bics[-1] - gmm_bic) < 0.05 * gmm_bic, \
+        (f"as lambda->inf, Hermite BIC ({bics[-1]:.1f}) should converge "
+         f"toward plain GMM's BIC ({gmm_bic:.1f})")
+
+    print(f"PASS  BIC effective df: m=0 -> {df0:.4f}; "
+          f"df(lambda) {np.round(dfs, 2)} monotone decreasing; "
+          f"BIC(lambda->inf)={bics[-1]:.1f} vs GMM BIC={gmm_bic:.1f}")
+
+
 if __name__ == "__main__":
     test_hermite_basis_orthonormal()
     test_gmm_reduction()
     test_monotone_loglik()
+    test_bic_effective_df_shrinkage()
     test_synthetic_skew_recovery()
     print("\nAll sanity tests passed.")

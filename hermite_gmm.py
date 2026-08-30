@@ -245,22 +245,67 @@ class HermiteGMM:
         log_prob = self._component_log_prob(X)
         return np.argmax(log_prob, axis=1)
 
-    def n_effective_params(self):
+    def _hermite_effective_df(self, X):
+        """Shrinkage-aware effective d.o.f. of the Hermite block (Section 36).
+
+        Charging every b_c,alpha as a full free parameter (the raw count
+        C*(|A_m|-1)) is what an *unregularized* fit would cost. Once
+        lambda is doing real shrinkage, most coefficients contribute far
+        less than one parameter's worth of flexibility -- charging the raw
+        count anyway makes BIC reject every Hermite fit regardless of
+        lambda, independent of whether the correction is real or noise.
+        That defeats the point of the lambda grid search.
+
+        Standard fix (ridge/GAM effective degrees of freedom): for each
+        coefficient, combine its empirical Fisher information J_alpha
+        (curvature of the data-fit term at the optimum) with the
+        regularizer's curvature 2*lambda*w_alpha via the ridge-trace
+        formula
+
+            df_alpha = J_alpha / (J_alpha + 2*lambda*w_alpha) in [0, 1].
+
+        An (essentially) unregularized, well-supported-by-data coefficient
+        gets df_alpha ~ 1 (a full parameter); one that's mostly shrunk
+        toward zero gets df_alpha ~ 0 (nearly free). Summed over alpha,
+        minus one degree of freedom per component for the exact ||b_c||=1
+        gauge constraint (not a shrinkage effect -- it's removed
+        regardless of lambda).
+
+        J_alpha uses the diagonal of the empirical Fisher information
+        (squared per-sample score), not the exact Hessian: the exact
+        Hessian's off-diagonal terms would need a full |A_m| x |A_m|
+        matrix, infeasible once |A_m| reaches the thousands (e.g. wine27's
+        degree-3 basis has 3655 functions). The squared-score form is also
+        sign-safe near g_c's real roots, where eps keeps the density
+        finite but the exact log-likelihood curvature can go either way.
+        """
+        log_prob = self._component_log_prob(X)
+        gamma = np.exp(log_prob - logsumexp(log_prob, axis=1, keepdims=True))
+        total_df = 0.0
+        for c in range(self.n_components):
+            Phi = hermite_features(self._whiten(X, c), self.alphas_)
+            g = Phi @ self.b_[c]
+            score = (2.0 * g / (g * g + self.eps))[:, None] * Phi   # (n, A)
+            J = np.sum(gamma[:, c, None] * score * score, axis=0)    # (A,)
+            df_alpha = J / (J + 2.0 * self.reg_lambda * self._reg_w + 1e-300)
+            total_df += max(float(np.sum(df_alpha)) - 1.0, 0.0)
+        return total_df
+
+    def n_effective_params(self, X):
         """Effective parameter count for BIC (Section 36).
 
-        Each unit-norm b_c contributes |A_m| - 1 free parameters (the
-        gauge constraint removes the scale direction; the same count is
-        used for the naive parameterization since scale is non-identified
-        there too). A pure-GMM basis (|A_m| = 1) contributes zero.
+        Weights, means, and covariances count their raw (unregularized)
+        parameter totals as usual; the Hermite block uses the
+        shrinkage-aware degrees of freedom from `_hermite_effective_df`.
         """
         C, k = self.n_components, self.means_.shape[1]
-        A = len(self.alphas_)
-        return (C - 1) + C * k + C * k * (k + 1) // 2 + C * (A - 1)
+        base = (C - 1) + C * k + C * k * (k + 1) // 2
+        return base + self._hermite_effective_df(X)
 
     def bic(self, X):
         X = np.asarray(X, dtype=float)
         ll = float(np.sum(self.score_samples(X)))
-        return -2.0 * ll + self.n_effective_params() * math.log(X.shape[0])
+        return -2.0 * ll + self.n_effective_params(X) * math.log(X.shape[0])
 
     def degree_energies(self):
         """Per-degree coefficient energy sum_{|alpha|=d} b_{c,alpha}^2.

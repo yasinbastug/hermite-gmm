@@ -54,7 +54,19 @@ python3.11 -m venv .venv
   provably monotone — the monotonicity assertion in the tests relies on it.
 - **Regularization** (Sec. 35): `-lambda * sum |alpha|^p b_alpha^2`, `p=2`
   default.
-- **BIC**: effective parameter count charges `|A_m| - 1` per component for
-  the Hermite block (the unit-norm constraint removes the scale direction).
+- **BIC**: the Hermite block uses a shrinkage-aware effective degrees of
+  freedom (`_hermite_effective_df`, ridge-trace formula
+  `df_alpha = J_alpha/(J_alpha + 2*lambda*w_alpha)` per coefficient, summed
+  and minus one per component for the exact `||b_c||=1` gauge constraint)
+  instead of charging the raw `|A_m| - 1` coefficient count. The raw count
+  made BIC reject every Hermite fit regardless of how much lambda was
+  actually shrinking the coefficients — Section 36 warns raw counts
+  "over-penalize somewhat," but in practice it swamped BIC by 5-10x.
+  Verified: effective df is exactly 0 at m=0, decreases monotonically in
+  lambda, and converges to plain-GMM's BIC (from just above) as
+  lambda -> infinity. Even fixed, BIC still doesn't prefer Hermite-GMM on
+  the datasets tested — a legitimate, conservative result now, not a
+  structurally broken one; CV-based selection remains the practical choice
+  (as the design doc's own Section 36 protocol specifies).
 - **eps**: fixed `1e-6` by default; with the gauge fixed, `||b|| = 1` so the
   scale-aware `1e-3 ||b||^2` variant is just a constant too.
