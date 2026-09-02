@@ -6,6 +6,7 @@
   "feature_scale_ratio": 5.0,
   "standardized": true,
   "reg_power": 2,
+  "precondition": false,
   "gmm": {
     "G_bic": 4,
     "bic_at_G_bic": 493.2926911437744,

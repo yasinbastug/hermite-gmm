@@ -111,7 +111,7 @@ def _fit_hermite(X, G, m, lam, n_init=2, max_iter=150, reg_power=2,
                       n_init=n_init, random_state=SEED).fit(X)
 
 
-def _cv_ll(X, G, m, lam, reg_power=2):
+def _cv_ll(X, G, m, lam, reg_power=2, precondition=False):
     """Mean held-out per-sample log-likelihood over K folds."""
     kf = KFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
     scores = []
@@ -119,17 +119,19 @@ def _cv_ll(X, G, m, lam, reg_power=2):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                model = _fit_hermite(X[tr], G, m, lam, reg_power=reg_power)
+                model = _fit_hermite(X[tr], G, m, lam, reg_power=reg_power,
+                                     precondition=precondition)
             scores.append(model.score(X[te]))
         except Exception:
             return -np.inf
     return float(np.mean(scores))
 
 
-def _cv_cell(X, G, m, lam, reg_power=2):
+def _cv_cell(X, G, m, lam, reg_power=2, precondition=False):
     """One grid cell -> (key, cv_ll). Returns -inf on any failure."""
     try:
-        return f"{G}|{m}|{lam}", _cv_ll(X, G, m, lam, reg_power)
+        return f"{G}|{m}|{lam}", _cv_ll(X, G, m, lam, reg_power,
+                                        precondition)
     except Exception:
         return f"{G}|{m}|{lam}", -np.inf
 
@@ -138,10 +140,17 @@ def _cv_cell(X, G, m, lam, reg_power=2):
 # Cache
 # ---------------------------------------------------------------------------
 
-def _cache_name(name, reg_power):
-    """Cache file per (dataset, reg_power). p=2 keeps the bare name so
-    existing caches stay valid; other powers get their own file."""
-    return name if reg_power == 2 else f"{name}_w{reg_power}"
+def _cache_name(name, reg_power, precondition=False):
+    """Cache file per (dataset, reg_power, precondition).
+
+    Defaults keep the bare name so existing caches stay valid; any
+    non-default option gets its own file, because a cached cv_ll computed
+    under different optimizer settings is NOT interchangeable.
+    """
+    suffix = "" if reg_power == 2 else f"_w{reg_power}"
+    if precondition:
+        suffix += "_pc"
+    return name + suffix
 
 
 def _load_cache(name):
@@ -183,7 +192,8 @@ def scale_ratio(X):
     return float(sd.max() / max(sd.min(), 1e-12))
 
 
-def run_dataset(name, degrees, max_phi_gb, max_basis, jobs, reg_power=2):
+def run_dataset(name, degrees, max_phi_gb, max_basis, jobs, reg_power=2,
+                precondition=False):
     X, y, true_G = TIER1[name]()
     ratio = scale_ratio(X)
     X = StandardScaler().fit_transform(X)
@@ -191,7 +201,7 @@ def run_dataset(name, degrees, max_phi_gb, max_basis, jobs, reg_power=2):
     t_start = time.time()
     res = {"dataset": name, "n": n, "p": k, "true_G": true_G,
            "feature_scale_ratio": round(ratio, 1), "standardized": True,
-           "reg_power": reg_power}
+           "reg_power": reg_power, "precondition": precondition}
 
     # ---- plain GMM: BIC over the G grid --------------------------------
     gmm_fits, gmm_bic = {}, {}
@@ -210,8 +220,8 @@ def run_dataset(name, degrees, max_phi_gb, max_basis, jobs, reg_power=2):
             float(adjusted_rand_score(y, gmm_fits[G_bic].predict(X))),
         "ari_at_true_G": None if y is None else
             float(adjusted_rand_score(y, gmm_fits[true_G].predict(X))),
-        "cv_ll_at_G_bic": _cv_ll(X, G_bic, 0, 0.0, reg_power),
-        "cv_ll_at_true_G": _cv_ll(X, true_G, 0, 0.0, reg_power),
+        "cv_ll_at_G_bic": _cv_ll(X, G_bic, 0, 0.0, reg_power, precondition),
+        "cv_ll_at_true_G": _cv_ll(X, true_G, 0, 0.0, reg_power, precondition),
     }
     print(f"[{name}] GMM: BIC selects G={G_bic} "
           f"(ARI {res['gmm']['ari_at_G_bic']}), "
@@ -227,7 +237,7 @@ def run_dataset(name, degrees, max_phi_gb, max_basis, jobs, reg_power=2):
         print(f"[{name}] SKIPPING infeasible degrees: {worst}", flush=True)
 
     # ---- Hermite-GMM: CV over (G, m, lambda), cached + parallel ---------
-    cache = _load_cache(_cache_name(name, reg_power))
+    cache = _load_cache(_cache_name(name, reg_power, precondition))
     combos = [(G, m, lam)
               for G in G_GRID for m in keep
               for lam in (LAMBDAS if m > 0 else [0.0])]
@@ -237,10 +247,11 @@ def run_dataset(name, degrees, max_phi_gb, max_basis, jobs, reg_power=2):
 
     if todo:
         out = Parallel(n_jobs=jobs, verbose=5)(
-            delayed(_cv_cell)(X, G, m, lam, reg_power) for G, m, lam in todo)
+            delayed(_cv_cell)(X, G, m, lam, reg_power, precondition)
+            for G, m, lam in todo)
         for key, val in out:
             cache[key] = val
-        _save_cache(_cache_name(name, reg_power), cache)
+        _save_cache(_cache_name(name, reg_power, precondition), cache)
 
     grid = {}      # G -> (cv_ll, m, lam)
     for G in G_GRID:
@@ -260,7 +271,8 @@ def run_dataset(name, degrees, max_phi_gb, max_basis, jobs, reg_power=2):
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             model = _fit_hermite(X, G, m, lam, n_init=5,
-                                 reg_power=reg_power)
+                                 reg_power=reg_power,
+                                 precondition=precondition)
         return model, {
             "G": G, "m": m, "lambda": lam, "cv_ll": cv_ll,
             "bic": float(model.bic(X)),
@@ -402,7 +414,7 @@ def main():
             continue
         try:
             run_dataset(nm, degrees, args.max_phi_gb, args.max_basis,
-                        args.jobs, args.reg_power)
+                        args.jobs, args.reg_power, args.precondition)
         except Exception:
             print(f"[{nm}] FAILED:\n{traceback.format_exc()}", flush=True)
 
