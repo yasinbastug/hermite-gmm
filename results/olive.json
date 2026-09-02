@@ -109,5 +109,7 @@
     }
   },
   "headline": false,
-  "runtime_s": 116.8
+  "runtime_s": 116.8,
+  "feature_scale_ratio": 31.3,
+  "standardized": true
 }

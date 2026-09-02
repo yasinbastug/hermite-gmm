@@ -1,6 +1,6 @@
 # Hermite-GMM Tier-1 benchmark results
 
-All features standardized. Plain GMM: G selected by BIC over G=1..10 (n_init=10). t-mix: **symmetric** Student's-t mixture (`studenttmixture`, estimated df) -- NOT a skew-t; no R was available and EMMIXskew is archived on CRAN, so per the spec this captures heavy tails only, not skewness. Hermite-GMM: (G, m, lambda) selected by 5-fold CV held-out log-likelihood over G=1..10, m in {0,3,4}, lambda in {0.1,1,10}; degrees 1-2 excluded; ||b_c||=1 gauge fixing on. m=0 = plain GMM (reduction check inside the grid).
+All features standardized. Plain GMM: G selected by BIC over G=1..10 (n_init=10). t-mix: **symmetric** Student's-t mixture (`studenttmixture`, estimated df) -- NOT a skew-t; no R was available and EMMIXskew is archived on CRAN, so per the spec this captures heavy tails only, not skewness. Hermite-GMM: (G, m, lambda) selected by 5-fold CV held-out log-likelihood over G=1..10, a degree grid m (per-dataset, see the 'Degree grid actually searched' table below), and lambda in {0.1,1,10}; degrees 1-2 excluded; ||b_c||=1 gauge fixing on. m=0 = plain GMM (reduction check inside the grid).
 
 ## Main comparison table
 
@@ -10,12 +10,47 @@ All features standardized. Plain GMM: G selected by BIC over G=1..10 (n_init=10)
 | faithful | 272 | 2 | 2 | 2 | -- | -- | 2 | -- | -- | (2, 4, 10.0) | -- | -- | n/a (G_bic <= true G) |
 | wine13 | 178 | 13 | 3 | 4 | 0.908 | 0.880 | 2 | 0.493 | 0.982 | (2, 4, 10.0) | 0.461 | 0.864 | **YES (cv-LL)** |
 | diabetes | 145 | 3 | 3 | 4 | 0.698 | 0.532 | 3 | 0.719 | 0.719 | (2, 3, 1.0) | 0.462 | 0.489 | **YES (cv-LL)** |
-| crabs | 200 | 5 | 4 | 3 | 0.646 | 0.023 | 3 | 0.678 | 0.601 | (3, 3, 10.0) | 0.626 | 0.018 | n/a (G_bic <= true G) |
+| crabs | 200 | 5 | 4 | 3 | 0.646 | 0.023 | 3 | 0.678 | 0.601 | (1, 9, 10.0) | 0.000 | 0.013 | n/a (G_bic <= true G) |
+| crabs_sp | 200 | 5 | 2 | 3 | 0.328 | 0.018 | -- | -- | -- | (3, 3, 10.0) | 0.332 | 0.015 | **YES (cv-LL)** |
 | banknote | 200 | 6 | 2 | 3 | 0.842 | 0.980 | 3 | 0.778 | 0.980 | (3, 0, 0.0) | 0.842 | 0.980 | no |
 | thyroid | 215 | 5 | 3 | 4 | 0.856 | 0.863 | 3 | 0.863 | 0.863 | (3, 3, 10.0) | 0.863 | 0.863 | **YES (cv-LL)** |
 | ais | 202 | 11 | 2 | 3 | 0.717 | 0.884 | 3 | 0.551 | 0.884 | (2, 4, 10.0) | 0.884 | 0.884 | **YES (cv-LL)** |
 | olive | 572 | 8 | 3 | 7 | 0.476 | 0.525 | 8 | 0.381 | 0.525 | (6, 4, 10.0) | 0.511 | 0.522 | no |
 | wine27 | 178 | 27 | 3 | 10 | 0.314 | 0.894 | 10 | 0.332 | 1.000 | (1, 3, 10.0) | 0.000 | 0.878 | **YES (cv-LL)** |
+
+## Feature scaling check (protocol step 1)
+
+Step 1 says to standardize only if the original units differ wildly across columns. Ratio = largest / smallest column standard deviation on the RAW features. Every Tier-1 dataset exceeds 3x, so all are standardized -- including Olive, which the prompt guessed might already be comparable but whose fatty-acid percentages actually span 31x (oleic ~7000 vs minor acids ~15).
+
+| dataset | raw SD ratio (max/min) | standardized |
+|---|---|---|
+| iris | 4.1x | yes |
+| faithful | 11.9x | yes |
+| wine13 | 2530.3x | yes |
+| diabetes | 5.0x | yes |
+| crabs | 3.1x | yes |
+| crabs_sp | 3.1x | yes |
+| banknote | 4.0x | yes |
+| thyroid | 9.3x | yes |
+| ais | 103.7x | yes |
+| olive | 31.3x | yes |
+| wine27 | 2530.3x | yes |
+
+## Degree grid actually searched
+
+| dataset | p | degrees searched | degrees skipped (infeasible) | m selected @CV | m selected @true-G | basis size @true-G |
+|---|---|---|---|---|---|---|
+| iris | 4 | 0,3,4,5,6,7,8,9,10,11,12 | -- | 0 | 0 | 1 |
+| faithful | 2 | 0,3,4,5,6,7,8,9,10,11,12 | -- | 4 | 4 | 10 |
+| wine13 | 13 | 0,3,4 | -- | 4 | 4 | -- |
+| diabetes | 3 | 0,3,4,5,6,7,8,9,10,11,12 | -- | 3 | 3 | 11 |
+| crabs | 5 | 0,3,4,5,6,7,8,9,10,11,12 | -- | 9 | 11 | 4348 |
+| crabs_sp | 5 | 0,3,4 | -- | 3 | 0 | 1 |
+| banknote | 6 | 0,3,4 | -- | 0 | 3 | -- |
+| thyroid | 5 | 0,3,4,5,6,7,8,9,10,11,12 | -- | 3 | 3 | 36 |
+| ais | 11 | 0,3,4 | -- | 4 | 4 | -- |
+| olive | 8 | 0,3,4 | -- | 4 | 4 | -- |
+| wine27 | 27 | 0,3 | -- | 3 | 3 | -- |
 
 ## Density fit at true G (held-out CV log-likelihood, mean per sample) and BIC
 
@@ -25,7 +60,8 @@ All features standardized. Plain GMM: G selected by BIC over G=1..10 (n_init=10)
 | faithful | -1.4750 | -1.4750 | -1.4308 | 832.6 | 847.0 | (m=4, lam=10.0) | yes |
 | wine13 | -16.6545 | -15.0841 | -14.9122 | 5558.8 | 6315.3 | (m=4, lam=10.0) | yes |
 | diabetes | -1.6903 | -1.6261 | -1.5351 | 493.3 | 589.1 | (m=3, lam=0.1) | yes |
-| crabs | 0.0905 | -0.1345 | -0.0557 | -56.1 | 384.6 | (m=3, lam=10.0) | yes |
+| crabs | 0.0905 | -0.1345 | -0.0001 | -56.1 | 1025.1 | (m=11, lam=10.0) | yes |
+| crabs_sp | 0.0905 | 0.1710 | 0.1710 | -56.1 | 87.9 | (m=0, lam=0.0) | yes |
 | banknote | -6.5110 | -6.6294 | -6.6289 | 2744.5 | 2968.6 | (m=3, lam=10.0) | yes |
 | thyroid | -2.8361 | -2.4845 | -2.4260 | 1191.4 | 1325.1 | (m=3, lam=10.0) | yes |
 | ais | -5.8497 | -5.7057 | -4.7541 | 2517.9 | 2964.0 | (m=4, lam=10.0) | yes |
@@ -57,14 +93,14 @@ All features standardized. Plain GMM: G selected by BIC over G=1..10 (n_init=10)
 | 1 | 0.8496 | 0.0000 | 0.0000 | 0.1504 |
 | 2 | 0.8294 | 0.0000 | 0.0000 | 0.1706 |
 
-**crabs** (G=4, m=3, lam=10.0):
+**crabs** (G=4, m=11, lam=10.0):
 
-| component | deg 0 | deg 1 | deg 2 | deg 3 |
-|---|---|---|---|---|
-| 0 | 0.9538 | 0.0000 | 0.0000 | 0.0462 |
-| 1 | 0.9312 | 0.0000 | 0.0000 | 0.0688 |
-| 2 | 0.9716 | 0.0000 | 0.0000 | 0.0284 |
-| 3 | 0.9609 | 0.0000 | 0.0000 | 0.0391 |
+| component | deg 0 | deg 1 | deg 2 | deg 3 | deg 4 | deg 5 | deg 6 | deg 7 | deg 8 | deg 9 | deg 10 | deg 11 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0 | 0.9358 | 0.0000 | 0.0000 | 0.0191 | 0.0167 | 0.0087 | 0.0072 | 0.0040 | 0.0033 | 0.0021 | 0.0019 | 0.0012 |
+| 1 | 0.8972 | 0.0000 | 0.0000 | 0.0384 | 0.0224 | 0.0133 | 0.0110 | 0.0054 | 0.0050 | 0.0029 | 0.0026 | 0.0018 |
+| 2 | 0.9647 | 0.0000 | 0.0000 | 0.0138 | 0.0076 | 0.0049 | 0.0029 | 0.0023 | 0.0013 | 0.0011 | 0.0008 | 0.0006 |
+| 3 | 0.9641 | 0.0000 | 0.0000 | 0.0160 | 0.0065 | 0.0051 | 0.0027 | 0.0019 | 0.0013 | 0.0010 | 0.0008 | 0.0006 |
 
 **banknote** (G=2, m=3, lam=10.0):
 

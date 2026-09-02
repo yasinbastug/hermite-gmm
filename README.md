@@ -14,7 +14,7 @@ GMM exactly (strict nested extension).
 |---|---|
 | `hermite_gmm.py` | The model: `HermiteGMM(n_components, degree, reg_lambda, ...)` with `fit / predict / predict_proba / score_samples / score / bic / degree_energies`. |
 | `test_hermite_gmm.py` | Sanity tests: basis orthonormality (quadrature), exact GMM reduction vs sklearn, monotone EM log-likelihood on iris, 1-D synthetic skew recovery. |
-| `datasets.py` | Tier-1 loaders (iris, faithful, wine13, diabetes, crabs, banknote, thyroid, ais, olive, wine27); files cached in `data/`, provenance in the docstring. |
+| `datasets.py` | Tier-1 loaders — 12 benchmark problems over 10 source datasets (iris, faithful, wine13, diabetes, crabs 4-group + crabs_sp 2-group, banknote, thyroid, ais, olive 3-region + olive_area 9-area, wine27). The prompt's table lists two documented labelings for Crabs and Olive, so both are benchmarked. Files cached in `data/`, provenance in the docstring. |
 | `benchmark.py` | Plain GMM (BIC over G=1..10) vs Hermite-GMM ((G, m, lambda) by 5-fold CV held-out log-likelihood). Configurable degree grid (`--degrees`, default m in {0,3,4,...,12}), memory-aware skipping (`--max-phi-gb`), parallel (`--jobs`), resumable via a per-cell cache, and `--dry-run` to plan cost. Writes `results/<dataset>.json`. |
 | `RUNNING.md` | Step-by-step instructions for running the full degree sweep on a bigger machine and delivering results back. |
 | `baseline_tmix.py` | Symmetric Student's-t mixture baseline (`studenttmixture`). **Not** a skew-t (no R available; EMMIXskew archived on CRAN) — labeled accordingly. |
@@ -55,6 +55,12 @@ python3.11 -m venv .venv
   provably monotone — the monotonicity assertion in the tests relies on it.
 - **Regularization** (Sec. 35): `-lambda * sum |alpha|^p b_alpha^2`, `p=2`
   default.
+- **Feature scaling** (protocol step 1): the protocol says to standardize only
+  when raw units differ wildly, so `benchmark.py` records the evidence
+  (`feature_scale_ratio` = max/min column SD) rather than assuming. Every
+  dataset exceeds 3x and all are standardized — including Olive, which the
+  prompt guessed might already be comparable but actually spans 31x (oleic
+  acid ~7000 vs minor acids ~15).
 - **BIC**: the Hermite block uses a shrinkage-aware effective degrees of
   freedom (`_hermite_effective_df`, ridge-trace formula
   `df_alpha = J_alpha/(J_alpha + 2*lambda*w_alpha)` per coefficient, summed

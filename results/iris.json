@@ -15,8 +15,17 @@
   "degrees_searched": [
     0,
     3,
-    4
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
   ],
+  "skipped_degrees": [],
   "hermite": {
     "cv_selected": {
       "G": 4,
@@ -26,6 +35,7 @@
       "bic": 845.7040998158458,
       "train_ll": -1.8335887248805556,
       "n_iter": 24,
+      "n_basis": 1,
       "monotone": true,
       "ari": 0.811454711392561,
       "degree_energies": [
@@ -51,6 +61,7 @@
       "bic": 801.5305856001238,
       "train_ll": -1.9368754421996286,
       "n_iter": 3,
+      "n_basis": 1,
       "monotone": true,
       "ari": 0.9038742317748124,
       "degree_energies": [
@@ -67,5 +78,7 @@
     }
   },
   "headline": false,
-  "runtime_s": 22.4
+  "runtime_s": 293.1,
+  "feature_scale_ratio": 4.1,
+  "standardized": true
 }

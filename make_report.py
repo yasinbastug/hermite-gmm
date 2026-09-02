@@ -10,8 +10,8 @@ import numpy as np
 
 RESULTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
 
-ORDER = ["iris", "faithful", "wine13", "diabetes", "crabs", "banknote",
-         "thyroid", "ais", "olive", "wine27"]
+ORDER = ["iris", "faithful", "wine13", "diabetes", "crabs", "crabs_sp",
+         "banknote", "thyroid", "ais", "olive", "olive_area", "wine27"]
 
 
 def _load(name, suffix=""):
@@ -53,9 +53,10 @@ def main():
                  "available and EMMIXskew is archived on CRAN, so per the spec "
                  "this captures heavy tails only, not skewness. Hermite-GMM: "
                  "(G, m, lambda) selected by 5-fold CV held-out log-likelihood "
-                 "over G=1..10, m in {0,3,4}, lambda in {0.1,1,10}; degrees 1-2 "
-                 "excluded; ||b_c||=1 gauge fixing on. m=0 = plain GMM "
-                 "(reduction check inside the grid).\n")
+                 "over G=1..10, a degree grid m (per-dataset, see the "
+                 "'Degree grid actually searched' table below), and lambda in "
+                 "{0.1,1,10}; degrees 1-2 excluded; ||b_c||=1 gauge fixing on. "
+                 "m=0 = plain GMM (reduction check inside the grid).\n")
 
     lines.append("## Main comparison table\n")
     lines.append("| dataset | n | p | true G | GMM G(BIC) | GMM ARI@BIC-G | "
@@ -81,6 +82,24 @@ def main():
             _headline(r),
         ]
         lines.append("| " + " | ".join(row) + " |")
+
+    lines.append("\n## Feature scaling check (protocol step 1)\n")
+    lines.append("Step 1 says to standardize only if the original units differ "
+                 "wildly across columns. Ratio = largest / smallest column "
+                 "standard deviation on the RAW features. Every Tier-1 dataset "
+                 "exceeds 3x, so all are standardized -- including Olive, which "
+                 "the prompt guessed might already be comparable but whose "
+                 "fatty-acid percentages actually span 31x (oleic ~7000 vs "
+                 "minor acids ~15).\n")
+    lines.append("| dataset | raw SD ratio (max/min) | standardized |")
+    lines.append("|---|---|---|")
+    for name in ORDER:
+        r = _load(name)
+        if r is None:
+            continue
+        sr = r.get("feature_scale_ratio")
+        lines.append(f"| {name} | {sr if sr is not None else '--'}x | "
+                     f"{'yes' if r.get('standardized', True) else 'no'} |")
 
     lines.append("\n## Degree grid actually searched\n")
     lines.append("| dataset | p | degrees searched | degrees skipped (infeasible) | "

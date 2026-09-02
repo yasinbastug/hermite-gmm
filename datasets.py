@@ -115,16 +115,24 @@ def load_iris_data():
     return d.data.astype(float), d.target.astype(int), 3
 
 
+# The prompt's Tier-1 table lists two datasets with TWO documented
+# labelings each -- Crabs "2 (or 4, by sex x colour)" and Olive "3 (region)
+# or 9 (area)". Both are benchmarked: the alternative labeling is a
+# genuinely different clustering problem on the same features, and for
+# Crabs the 2-group (species) version is the classic mclust benchmark
+# where BIC is known to over-select G.
 TIER1 = {
     "iris": load_iris_data,
     "faithful": load_faithful,
     "wine13": load_wine13,
     "diabetes": load_diabetes,
-    "crabs": load_crabs,
+    "crabs": load_crabs,              # 4 groups: species x sex
+    "crabs_sp": load_crabs_sp,        # 2 groups: species only
     "banknote": load_banknote,
     "thyroid": load_thyroid,
     "ais": load_ais,
-    "olive": load_olive,
+    "olive": load_olive,              # 3 groups: region
+    "olive_area": load_olive_area,    # 9 groups: area
     "wine27": load_wine27,
 }
 

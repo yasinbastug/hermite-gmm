@@ -103,13 +103,13 @@ def feasible_degrees(n, k, degrees, max_phi_gb, max_basis):
 # CV evaluation (module-level so joblib can pickle it)
 # ---------------------------------------------------------------------------
 
-def _fit_hermite(X, G, m, lam, n_init=2, max_iter=150):
+def _fit_hermite(X, G, m, lam, n_init=2, max_iter=150, reg_power=2):
     return HermiteGMM(n_components=G, degree=m, reg_lambda=lam,
-                      max_iter=max_iter, tol=1e-5, n_init=n_init,
-                      random_state=SEED).fit(X)
+                      reg_power=reg_power, max_iter=max_iter, tol=1e-5,
+                      n_init=n_init, random_state=SEED).fit(X)
 
 
-def _cv_ll(X, G, m, lam):
+def _cv_ll(X, G, m, lam, reg_power=2):
     """Mean held-out per-sample log-likelihood over K folds."""
     kf = KFold(n_splits=N_FOLDS, shuffle=True, random_state=SEED)
     scores = []
@@ -117,17 +117,17 @@ def _cv_ll(X, G, m, lam):
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
-                model = _fit_hermite(X[tr], G, m, lam)
+                model = _fit_hermite(X[tr], G, m, lam, reg_power=reg_power)
             scores.append(model.score(X[te]))
         except Exception:
             return -np.inf
     return float(np.mean(scores))
 
 
-def _cv_cell(X, G, m, lam):
+def _cv_cell(X, G, m, lam, reg_power=2):
     """One grid cell -> (key, cv_ll). Returns -inf on any failure."""
     try:
-        return f"{G}|{m}|{lam}", _cv_ll(X, G, m, lam)
+        return f"{G}|{m}|{lam}", _cv_ll(X, G, m, lam, reg_power)
     except Exception:
         return f"{G}|{m}|{lam}", -np.inf
 
@@ -135,6 +135,12 @@ def _cv_cell(X, G, m, lam):
 # ---------------------------------------------------------------------------
 # Cache
 # ---------------------------------------------------------------------------
+
+def _cache_name(name, reg_power):
+    """Cache file per (dataset, reg_power). p=2 keeps the bare name so
+    existing caches stay valid; other powers get their own file."""
+    return name if reg_power == 2 else f"{name}_w{reg_power}"
+
 
 def _load_cache(name):
     path = os.path.join(CACHE_DIR, f"{name}.json")
@@ -160,12 +166,30 @@ def _save_cache(name, cache):
 # Main per-dataset routine
 # ---------------------------------------------------------------------------
 
-def run_dataset(name, degrees, max_phi_gb, max_basis, jobs):
+def scale_ratio(X):
+    """Largest / smallest column standard deviation.
+
+    Protocol step 1 says to standardize only "if the original units are
+    wildly different across columns (check)". This records the evidence
+    for that decision instead of assuming it. Empirically every Tier-1
+    dataset has a ratio >= 3, so all are standardized -- including Olive,
+    whose fatty-acid percentages the prompt guessed "may already be
+    comparable" but which actually spans 31x (oleic acid ~7000 vs minor
+    acids ~15, same unit, very different magnitude).
+    """
+    sd = X.std(axis=0)
+    return float(sd.max() / max(sd.min(), 1e-12))
+
+
+def run_dataset(name, degrees, max_phi_gb, max_basis, jobs, reg_power=2):
     X, y, true_G = TIER1[name]()
+    ratio = scale_ratio(X)
     X = StandardScaler().fit_transform(X)
     n, k = X.shape
     t_start = time.time()
-    res = {"dataset": name, "n": n, "p": k, "true_G": true_G}
+    res = {"dataset": name, "n": n, "p": k, "true_G": true_G,
+           "feature_scale_ratio": round(ratio, 1), "standardized": True,
+           "reg_power": reg_power}
 
     # ---- plain GMM: BIC over the G grid --------------------------------
     gmm_fits, gmm_bic = {}, {}
@@ -184,8 +208,8 @@ def run_dataset(name, degrees, max_phi_gb, max_basis, jobs):
             float(adjusted_rand_score(y, gmm_fits[G_bic].predict(X))),
         "ari_at_true_G": None if y is None else
             float(adjusted_rand_score(y, gmm_fits[true_G].predict(X))),
-        "cv_ll_at_G_bic": _cv_ll(X, G_bic, 0, 0.0),
-        "cv_ll_at_true_G": _cv_ll(X, true_G, 0, 0.0),
+        "cv_ll_at_G_bic": _cv_ll(X, G_bic, 0, 0.0, reg_power),
+        "cv_ll_at_true_G": _cv_ll(X, true_G, 0, 0.0, reg_power),
     }
     print(f"[{name}] GMM: BIC selects G={G_bic} "
           f"(ARI {res['gmm']['ari_at_G_bic']}), "
@@ -201,7 +225,7 @@ def run_dataset(name, degrees, max_phi_gb, max_basis, jobs):
         print(f"[{name}] SKIPPING infeasible degrees: {worst}", flush=True)
 
     # ---- Hermite-GMM: CV over (G, m, lambda), cached + parallel ---------
-    cache = _load_cache(name)
+    cache = _load_cache(_cache_name(name, reg_power))
     combos = [(G, m, lam)
               for G in G_GRID for m in keep
               for lam in (LAMBDAS if m > 0 else [0.0])]
@@ -211,10 +235,10 @@ def run_dataset(name, degrees, max_phi_gb, max_basis, jobs):
 
     if todo:
         out = Parallel(n_jobs=jobs, verbose=5)(
-            delayed(_cv_cell)(X, G, m, lam) for G, m, lam in todo)
+            delayed(_cv_cell)(X, G, m, lam, reg_power) for G, m, lam in todo)
         for key, val in out:
             cache[key] = val
-        _save_cache(name, cache)
+        _save_cache(_cache_name(name, reg_power), cache)
 
     grid = {}      # G -> (cv_ll, m, lam)
     for G in G_GRID:
@@ -233,7 +257,8 @@ def run_dataset(name, degrees, max_phi_gb, max_basis, jobs):
         cv_ll, m, lam = grid[G]
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            model = _fit_hermite(X, G, m, lam, n_init=5)
+            model = _fit_hermite(X, G, m, lam, n_init=5,
+                                 reg_power=reg_power)
         return model, {
             "G": G, "m": m, "lambda": lam, "cv_ll": cv_ll,
             "bic": float(model.bic(X)),
@@ -335,6 +360,11 @@ def main():
                          f"(default {DEFAULT_MAX_PHI_GB})")
     ap.add_argument("--max-basis", type=int, default=DEFAULT_MAX_BASIS,
                     help="skip (dataset, m) with more basis functions")
+    ap.add_argument("--reg-power", type=int, default=2, choices=[2, 4],
+                    help="degree weight exponent p in w_alpha=|alpha|^p "
+                         "(2 = default; 4 penalizes high degrees 16x harder "
+                         "and suppresses the high-m mode-invention failure). "
+                         "Uses a separate CV cache per power.")
     ap.add_argument("--jobs", type=int, default=1,
                     help="parallel processes for the CV grid (default 1). "
                          "Peak RAM is roughly jobs x peak-Phi.")
@@ -364,7 +394,7 @@ def main():
             continue
         try:
             run_dataset(nm, degrees, args.max_phi_gb, args.max_basis,
-                        args.jobs)
+                        args.jobs, args.reg_power)
         except Exception:
             print(f"[{nm}] FAILED:\n{traceback.format_exc()}", flush=True)
 

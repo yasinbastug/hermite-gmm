@@ -41,7 +41,7 @@ Confirm the install and the datasets:
 
 All five sanity tests must pass (exact GMM reduction, monotone EM objective,
 BIC effective-d.o.f. shrinkage, basis orthonormality, synthetic skew recovery),
-and all ten datasets must load. **If anything fails here, stop** — the data files
+and all twelve datasets must load. **If anything fails here, stop** — the data files
 are committed to the repo, so failures mean an environment problem, not a
 missing download.
 
@@ -55,30 +55,31 @@ missing download.
 
 This prints, per dataset, which degrees are feasible, which get skipped, the
 number of CV grid cells, and peak memory — without fitting anything. At the
-default 4 GB cap you should see 2,860 cells / 14,300 model fits, with all
+default 4 GB cap you should see 3,480 cells / 17,400 model fits, with all
 degrees feasible except `wine13` (m=11,12) and `wine27` (m≥7).
 
 ---
 
 ## 3. Run it
 
-The cost is wildly uneven: six datasets are nearly free, four dominate. Run them
+The cost is wildly uneven: seven datasets are nearly free, five dominate. Run them
 in tiers so you have deliverable results early and the expensive work is isolated.
 
-**Tier 1 — six cheap datasets, ~4 core-hours total.** These may already be
+**Tier 1 — seven cheap datasets, ~6–13 core-hours total.** These may already be
 committed with full m=0–12 results, in which case this is a no-op:
 
 ```bash
-.venv/bin/python benchmark.py faithful diabetes iris crabs thyroid banknote --jobs 8 2>&1 | tee run-cheap.log
+.venv/bin/python benchmark.py faithful diabetes iris crabs crabs_sp thyroid banknote --jobs 8 2>&1 | tee run-cheap.log
 ```
 
-**Tier 2 — the expensive four, ~260 core-hours.** Run these on the big machine:
+**Tier 2 — the expensive five, ~270–920 core-hours.** Run these on the big machine:
 
 ```bash
-.venv/bin/python benchmark.py olive wine27 wine13 ais --jobs 16 2>&1 | tee run-heavy.log
+.venv/bin/python benchmark.py olive olive_area wine27 wine13 ais --jobs 16 2>&1 | tee run-heavy.log
 ```
 
-Ordered cheapest-first (olive 33h, wine27 48h, wine13 69h, ais 109h) so partial
+Ordered cheapest-first (olive and olive_area ~31-105h each, wine27 44-150h,
+wine13 64-219h, ais 100-342h) so partial
 results accumulate steadily. Or just run everything:
 
 ```bash
@@ -101,11 +102,11 @@ If you would rather run datasets separately (recommended if you want to
 parallelize across machines, or isolate the expensive ones):
 
 ```bash
-.venv/bin/python benchmark.py iris faithful diabetes crabs thyroid banknote --jobs 8
+.venv/bin/python benchmark.py iris faithful diabetes crabs crabs_sp thyroid banknote --jobs 8
 ```
 
 ```bash
-.venv/bin/python benchmark.py olive ais wine13 wine27 --jobs 4
+.venv/bin/python benchmark.py olive olive_area ais wine13 wine27 --jobs 4
 ```
 
 ---
@@ -119,9 +120,9 @@ trade off directly.
 | dataset | p | Phi @ m=8 | Phi @ m=10 | Phi @ m=12 |
 |---|---|---|---|---|
 | faithful, diabetes, iris | 2–4 | <1 MB | 1 MB | 2 MB |
-| thyroid, crabs | 5 | 2 MB | 5 MB | 11 MB |
+| thyroid, crabs, crabs_sp | 5 | 2 MB | 5 MB | 11 MB |
 | banknote | 6 | 5 MB | 13 MB | 30 MB |
-| olive | 8 | 59 MB | 200 MB | 576 MB |
+| olive, olive_area | 8 | 59 MB | 200 MB | 576 MB |
 | ais | 11 | 122 MB | 570 MB | **2.2 GB** |
 | wine13 | 13 | 290 MB | **1.6 GB** | **7.4 GB** |
 | wine27 | 27 | **33 GB** | **496 GB** | **6 TB** |
@@ -144,20 +145,39 @@ Anything skipped is recorded in `results/<dataset>.json` under
 
 ---
 
+## 4b. Regularizer shape: `--reg-power`
+
+The penalty weight is `w_α = |α|^p`. The default `p = 2` is the spec's default;
+`p = 4` penalizes high degrees 16× harder and is worth trying if you see the
+high-degree failure mode described at the end of this file:
+
+```bash
+.venv/bin/python benchmark.py crabs --reg-power 4 --jobs 8
+```
+
+Verified on thyroid at m=6: switching to `p = 4` cut degree-6 coefficient energy
+35× (0.0838 → 0.0024) while leaving degree-3 essentially untouched
+(0.0542 → 0.0524), and dropped effective d.o.f. from 391 to 88. Each power gets
+its own CV cache (`<dataset>_w4.json`), so the two never collide and you can run
+both without invalidating either.
+
+---
+
 ## 5. Expected runtime
 
 `--dry-run` prints a per-dataset estimate. At the default caps:
 
 | dataset | est. core-hours | share |
 |---|---|---|
-| faithful, diabetes, iris, crabs, thyroid, banknote | ~5–11 combined | 2% |
-| olive | 31–105 | 13% |
-| wine27 (capped at m=6) | 44–150 | 18% |
-| wine13 (capped at m=10) | 64–219 | 26% |
-| ais | 100–342 | 41% |
-| **total** | **242–827** | |
+| faithful, diabetes, iris, crabs, crabs_sp, thyroid, banknote | ~6–13 combined | 2% |
+| olive (region, G=3) | 31–105 | 11% |
+| olive_area (area, G=9) | 31–105 | 11% |
+| wine27 (capped at m=6) | 44–150 | 16% |
+| wine13 (capped at m=10) | 64–219 | 23% |
+| ais | 100–342 | 37% |
+| **total (12 datasets)** | **274–935** | |
 
-So roughly **30–103 h at 8 jobs, 15–52 h at 16, 8–26 h at 32**, assuming
+So roughly **34–117 h at 8 jobs, 17–58 h at 16, 9–29 h at 32**, assuming
 near-perfect scaling (optimistic).
 
 The range is wide because it is real. Measured cost per `n × |A_m|` unit
