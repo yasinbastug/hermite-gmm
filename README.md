@@ -61,6 +61,17 @@ python3.11 -m venv .venv
   dataset exceeds 3x and all are standardized — including Olive, which the
   prompt guessed might already be comparable but actually spans 31x (oleic
   acid ~7000 vs minor acids ~15).
+- **Degree-block structure** (Sec. 14) is used in two places. As the
+  *reported diagnostic* — `degree_energies()` gives the invariant
+  `sum_{|alpha|=d} b^2` per component, which is what diagnosed the crabs
+  high-degree collapse. And as an optional *optimizer preconditioner*
+  (`precondition=True`), block-constant because those are exactly the
+  diagonal scalings invariant to the whitening rotation. The
+  preconditioner is **off by default on measured evidence**: it helped
+  decisively on one of eight configurations (olive m=8, 1.7-2.1x) and hurt
+  on more (olive m=10 0.58x, wine13 m=6 0.69x). The gauge fix already
+  leaves the inner Hessian at condition number 1.6-4.8, so there is
+  nothing left to precondition.
 - **BIC**: the Hermite block uses a shrinkage-aware effective degrees of
   freedom (`_hermite_effective_df`, ridge-trace formula
   `df_alpha = J_alpha/(J_alpha + 2*lambda*w_alpha)` per coefficient, summed

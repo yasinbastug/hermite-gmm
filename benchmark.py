@@ -103,9 +103,11 @@ def feasible_degrees(n, k, degrees, max_phi_gb, max_basis):
 # CV evaluation (module-level so joblib can pickle it)
 # ---------------------------------------------------------------------------
 
-def _fit_hermite(X, G, m, lam, n_init=2, max_iter=150, reg_power=2):
+def _fit_hermite(X, G, m, lam, n_init=2, max_iter=150, reg_power=2,
+                 precondition=False):
     return HermiteGMM(n_components=G, degree=m, reg_lambda=lam,
-                      reg_power=reg_power, max_iter=max_iter, tol=1e-5,
+                      reg_power=reg_power, precondition=precondition,
+                      max_iter=max_iter, tol=1e-5,
                       n_init=n_init, random_state=SEED).fit(X)
 
 
@@ -365,6 +367,12 @@ def main():
                          "(2 = default; 4 penalizes high degrees 16x harder "
                          "and suppresses the high-m mode-invention failure). "
                          "Uses a separate CV cache per power.")
+    ap.add_argument("--precondition", action="store_true",
+                    help="use per-degree-block preconditioning of the b_c "
+                         "search direction (Sec. 14). OFF by default: "
+                         "measured across 8 configs it hurt more often than "
+                         "it helped, because gauge fixing already leaves the "
+                         "inner Hessian at condition number 1.6-4.8.")
     ap.add_argument("--jobs", type=int, default=1,
                     help="parallel processes for the CV grid (default 1). "
                          "Peak RAM is roughly jobs x peak-Phi.")

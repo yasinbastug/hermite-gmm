@@ -28,6 +28,12 @@ Key design choices, following the design doc:
   the ablation.
 * Regularization (Section 35): -lambda * sum_alpha |alpha|^p b_{c,alpha}^2
   with p = 2 by default.
+* Optional per-DEGREE-BLOCK preconditioning of the b_c direction
+  (``precondition=True``, Section 14). Blocks are the invariant
+  granularity under the whitening rotation. Off by default: measurement
+  showed the gauge fix already leaves the inner problem well conditioned
+  (cond 1.6-4.8), so there is nothing left to gain -- see the parameter
+  docstring for the numbers.
 * Fitting is block-coordinate generalized EM (Section 34). The weighted
   Gaussian M-step is not exactly optimal here (rho depends on mu, Sigma
   through u), so an optional safeguard rejects a Gaussian block move that
@@ -163,6 +169,24 @@ class HermiteGMM:
     safe_gaussian_update : bool
         Reject a mu/Sigma block move that decreases the observed
         log-likelihood (keeps the outer iteration monotone).
+    precondition : bool
+        Scale the b_c search direction by a per-degree-block diagonal
+        preconditioner (Section 14). Blocks are the right granularity
+        because, under the rotation relating two whitening square roots,
+        each degree-d block maps into itself -- so block-constant
+        diagonal scalings are exactly the ones invariant to that
+        arbitrary choice.
+
+        DEFAULT FALSE, on measured evidence. Across 8 (dataset, m, lambda)
+        configurations it helped decisively once (olive m=8: 1.7-2.1x,
+        iterations 37->20) and hurt more often than it helped (olive m=10
+        0.58x, wine13 m=6 0.69x, banknote m=10 0.85x). The reason is in
+        the gauge ablation: with ||b_c||=1 the inner Hessian already has
+        condition number 1.6-4.8, i.e. the problem is essentially
+        perfectly conditioned and there is nothing left to precondition --
+        the gauge fix (Sec. 33) already did this job. Scaling the
+        direction then only moves it off steepest ascent. Kept as an
+        option because it is exact and cheap to try, not because it pays.
     n_init : int
         Number of initializations for the initial sklearn GMM fit.
     random_state : int or None
@@ -172,7 +196,8 @@ class HermiteGMM:
     def __init__(self, n_components=2, degree=3, reg_lambda=1e-3, reg_power=2,
                  exclude_degrees_12=True, eps=1e-6, cov_ridge=1e-6,
                  max_iter=200, tol=1e-5, n_inner=5, gauge_fix=True,
-                 safe_gaussian_update=True, n_init=1, random_state=None):
+                 safe_gaussian_update=True, precondition=False, n_init=1,
+                 random_state=None):
         self.n_components = n_components
         self.degree = degree
         self.reg_lambda = reg_lambda
@@ -185,6 +210,7 @@ class HermiteGMM:
         self.n_inner = n_inner
         self.gauge_fix = gauge_fix
         self.safe_gaussian_update = safe_gaussian_update
+        self.precondition = precondition
         self.n_init = n_init
         self.random_state = random_state
 
@@ -329,8 +355,9 @@ class HermiteGMM:
 
         self.alphas_ = multi_indices(k, self.degree, self.exclude_degrees_12)
         A = len(self.alphas_)
-        self._reg_w = np.array([float(sum(a)) ** self.reg_power
-                                for a in self.alphas_])
+        self._degs = np.array([sum(a) for a in self.alphas_])
+        self._block_ids = np.unique(self._degs)
+        self._reg_w = self._degs.astype(float) ** self.reg_power
 
         # 1-2. Plain-GMM initialization; b_c at the GMM baseline.
         gmm = GaussianMixture(n_components=self.n_components,
@@ -443,6 +470,45 @@ class HermiteGMM:
         reg = 2.0 * self.reg_lambda * self._reg_w * b
         return data - norm - reg
 
+    def _block_precond(self, Phi, gamma, g):
+        """Per-degree-block diagonal preconditioner (Section 14).
+
+        The blocks matter here for a specific reason. Under the rotation
+        relating two whitening square roots, each degree-d Hermite block
+        maps into itself (Sec. 14), so a diagonal scaling commutes with
+        that rotation *iff* it is constant within each degree block.
+        Block-constant is therefore the finest diagonal preconditioner
+        that does not depend on the arbitrary choice of matrix square
+        root -- a general per-coefficient one would make the optimizer's
+        trajectory convention-dependent.
+
+        Scale per block: the curvature of Q in a degree-d direction is
+        (data term) + (regularizer term) = J_bar + 2*lambda*d^p. Because
+        the basis is orthonormal under the Gaussian (Parseval), the data
+        term is approximately block-uniform, so J_bar is a single scalar
+        and the whole preconditioner costs O(n) rather than O(n|A_m|) --
+        no large temporary. The block spread therefore comes from the
+        regularizer, which at m=12, lambda=10 spans 0 (degree 0) to
+        2*10*12^2 = 2880 (degree 12); without preconditioning one scalar
+        step size has to serve both ends.
+
+        Normalized to mean 1 so it reshapes the step without rescaling it.
+        """
+        s = 2.0 * g / (g * g + self.eps)
+        w = gamma * s * s
+        denom = np.empty(self._degs.size)
+        for d in self._block_ids:
+            msk = self._degs == d
+            # per-row sum of squared basis values within this block, via
+            # einsum so the n x |block| square is never materialized
+            sub = Phi[:, msk]
+            rows = np.einsum("ia,ia->i", sub, sub)
+            J_d = float(w @ rows) / max(int(msk.sum()), 1)
+            denom[msk] = J_d + 2.0 * self.reg_lambda * (
+                float(d) ** self.reg_power)
+        P = 1.0 / np.maximum(denom, 1e-12)
+        return P * (P.size / P.sum())
+
     def _update_b(self, c, Phi, gamma, Nc, it):
         """A few ascent steps on Q_c, warm-started from the current b_c.
 
@@ -465,22 +531,35 @@ class HermiteGMM:
             diag.grad_norms.append(gnorm)
             if gnorm < 1e-12:
                 break
+            # Search direction: preconditioned gradient, re-projected onto
+            # the tangent space. slope = grad . d > 0 for any positive P,
+            # so this stays an ascent direction and the accepted-ascent
+            # (hence monotonicity) guarantee is unchanged.
+            if self.precondition:
+                d = self._block_precond(Phi, gamma, Pb) * grad
+                if self.gauge_fix:
+                    d = d - (b @ d) * b
+            else:
+                d = grad
+            slope = float(grad @ d)
+            if slope <= 0:                    # numerical safeguard
+                d, slope = grad, gnorm ** 2
             # Armijo backtracking. Phi @ (b + t*grad) = Pb + t*Pg is exact
             # and O(n), so the O(n|A_m|) matvec happens once per inner step
             # instead of once per backtrack -- worth up to ~30x here, and
             # |A_m| reaches thousands at high degree.
-            Pg = Phi @ grad
+            Pg = Phi @ d
             accepted = False
             t = step
             for _bt in range(30):
-                b_new = b + t * grad
+                b_new = b + t * d
                 g_new = Pb + t * Pg
                 if self.gauge_fix:
                     nrm = np.linalg.norm(b_new)
                     b_new = b_new / nrm
                     g_new = g_new / nrm
                 q_new = self._Q_from_g(g_new, b_new, gamma, Nc)
-                if q_new >= q + 1e-4 * t * gnorm ** 2:
+                if q_new >= q + 1e-4 * t * slope:
                     accepted = True
                     break
                 t *= 0.5
